@@ -1,0 +1,114 @@
+# file: roles/hadoop_dfs/tasks/main.yml
+---
+
+# ------------------configure the hdfs user and unpack hadoop package--------------------------
+
+- name: create hdfs and hadoop user groups
+  group: name={{item}} state=present
+  with_items:
+    - hdfs
+    - hadoop
+
+# putting in wheel group makes hdfs user a sudoer 
+- name: create hdfs user - password is "password1234" hashed using "grub-crypt --sha-512"
+  user: name=hdfs group=hdfs groups=hdfs,hadoop,wheel append=yes state=present 
+    password=$6$AGLYCh0AM8JGAN46$g3nU4C0wUbBxnovk1wp6cZdVv0kOKwdDZRDx0LZLRYtmZLMAxID6i8u1etlg0OTD7EpCfMYWAI7Urme1WqRQP/
+
+# create authorized key based on the pub key of boilerplate hdfs user on ansible server - chmod is 600 by default
+- name:  create authorized_keys file for hdfs user
+  authorized_key: user=hdfs key="{{ lookup('file', 'id_rsa.pub') }}"     # " # the last double quote  
+
+- name: copy private key
+  copy: src=id_rsa owner=hdfs group=hdfs mode=600 dest=/home/hdfs/.ssh
+
+- name: setup hadoop env variables in hdfs user's bash_profile
+  template: src=bash_profile.j2 dest=/home/hdfs/.bash_profile owner=hdfs group=hdfs mode=644
+
+- name: extract hadoop_cdh_gz package - can take a while...
+  unarchive: src={{hadoop_cdh_gz}} copy=yes dest=/opt owner=hdfs group=hdfs # mode=755  
+
+- name: fix owner permission thing because unarchive above ignores it
+  file: path=/opt/{{hadoop_cdh}} state=directory group=hdfs owner=hdfs recurse=yes
+
+# -----------------------------change the default mapreduce2 to mapreduce1---------------------------------------
+
+- name: change default mapreduce2 to mapreduce1 - 1 of 4
+  shell: cd /opt/hadoop-2.5.0-cdh5.2.0 ; sudo -u hdfs mv bin bin-mapreduce2 ; sudo -u hdfs mv examples examples-mapreduce2
+
+- name: change default mapreduce2 to mapreduce1 - 2 of 4
+  shell: cd /opt/hadoop-2.5.0-cdh5.2.0 ; sudo -u hdfs ln -s bin-mapreduce1 bin ; sudo -u hdfs ln -s examples-mapreduce1 examples
+
+- name: change default mapreduce2 to mapreduce1 - 3 of 4
+  shell: cd /opt/hadoop-2.5.0-cdh5.2.0/etc ; sudo -u hdfs mv hadoop hadoop-mapreduce2 ; sudo -u hdfs ln -s hadoop-mapreduce1 hadoop
+
+- name: change default mapreduce2 to mapreduce1 - 4 of 4
+  shell: cd /opt/hadoop-2.5.0-cdh5.2.0/share/hadoop ; sudo -u hdfs rm mapreduce ; sudo -u hdfs ln -s mapreduce1 mapreduce
+
+# the cdh5 has hdfs binary file in default mapreduce2 directory... make copy to mapreduce1
+- name: copy hdfs binary from mapreduce2 to mapreduce1 dir
+  shell: sudo -u hdfs cp {{hadoop_bin_dir}}/../bin-mapreduce2/hdfs {{hadoop_bin_dir}}
+
+# -----------------------------configure the hadoop file system and mapreduce-------------------------------------
+
+- name: core-site.xml template
+  template: src=core-site.xml.j2 dest={{hadoop_config_dir}}/core-site.xml owner=hdfs group=hdfs mode=644
+
+- name: hdfs-site.xml template
+  template: src=hdfs-site.xml.j2 dest={{hadoop_config_dir}}/hdfs-site.xml owner=hdfs group=hdfs mode=644
+
+- name: mapred-site.xml template
+  template: src=mapred-site.xml.j2 dest={{hadoop_config_dir}}/mapred-site.xml owner=hdfs group=hdfs mode=644
+
+- name: hadoop-env.sh template
+  template: src=hadoop-env.sh.j2 dest={{hadoop_config_dir}}/hadoop-env.sh owner=hdfs group=hdfs mode=644
+
+- name: create namenode data directories
+  file: path={{item}} state=directory group=hdfs owner=hdfs mode=755
+  with_items: 
+    nn_data_dir
+  when: inventory_hostname in groups['masters']
+
+# make sure namenode daemon is NOT running when formating 
+- name: hadoop-namenode.conf init script template
+  template: src=hadoop-namenode.conf.j2 dest=/etc/init/hadoop-namenode.conf owner=0 group=0 mode=644
+  when: inventory_hostname in groups['masters']
+
+- name: create datanode data directories
+  file: path={{item}} state=directory group=hdfs owner=hdfs mode=755
+  with_items: 
+    dn_data_dir
+  when: inventory_hostname in groups['slaves']
+
+- name: hadoop-datanode.conf init script template
+  template: src=hadoop-datanode.conf.j2 dest=/etc/init/hadoop-datanode.conf owner=0 group=0 mode=644
+  when: inventory_hostname in groups['slaves']
+  notify:
+    - start hadoop-datanode
+
+# ---------------take care of some bugs of running the current version of hadoop -------------------
+
+- name: set NullAppender in log4j.properties
+  template: src=log4j.properties.j2 dest={{hadoop_config_dir}}/log4j.properties owner=hdfs group=hdfs mode=644
+
+- name: remove duplicate slf4j-log4j12-1.7.5.jar
+  file: path={{hadoop_slf4j_jar}} state=absent
+
+# ---------------in order to run mapreduce framework on top of mesos,------------------------------------------
+# ---------------the archived of the fully configured hadoop package-------------------------------------------
+# ----------------need to be uploaded onto hadoop file system--------------------------------------------------
+
+- name: copy hadoop-mesos-0.0.8.jar needed for communication between hadoop and mesos
+  copy: src=hadoop-mesos-0.0.8.jar owner=hdfs group=hdfs mode=644 dest=/opt/hadoop-2.5.0-cdh5.2.0/share/hadoop/common/lib
+
+- name: repackage hadoop as tgz file for uploading onto hadoop file system
+  shell: cd /opt ; sudo tar -czf /home/hdfs/{{hadoop_cdh_gz}} {{hadoop_cdh}}
+  when: inventory_hostname in groups['namenode']
+
+- name: make hdfs owner of the repackaged hadoop tar before uploading to hadoop fs
+  file: path=/home/hdfs/{{hadoop_cdh_gz}} state=file group=hdfs owner=hdfs mode=644
+  when: inventory_hostname in groups['namenode']
+
+
+
+
+

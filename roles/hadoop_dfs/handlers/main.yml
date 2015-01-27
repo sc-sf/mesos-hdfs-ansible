@@ -1,0 +1,5 @@
+# file: roles/hadoop_dfs/handlers/main.yml
+
+
+- name: start hadoop-datanode
+  service: name=hadoop-datanode state=started

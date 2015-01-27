@@ -1,0 +1,28 @@
+# file: useradd-hdfs_local.yml
+---
+
+# Before running the hadoop_dfs playbook, this task should be run once separately creating hdfs user 
+# account as boilerplaet on the ansible server locally. 
+# hadoop_dfs playbook relies on this hdfs user to set up the hdfs user on remote machines 
+# This task would generate user hdfs, groups hdfs (primary) and hadoop, and passwordless rsa-based key pair 
+# with 2048 bits as default. This key pair is put in the .ssh dir, that also gets created automatically.
+
+- hosts: localhost
+  gather_facts: no
+  sudo: yes
+  connection: local
+  tasks:
+  - name: create hdfs and hadoop user groups
+    group: name={{item}} state=present
+    with_items:
+    - hdfs
+    - hadoop 
+
+  - name: create hdfs user locally on ansible server - password is "password1234" hashed using "grub-crypt --sha-512"
+    user: name=hdfs group=hdfs groups=hdfs,hadoop append=yes state=present generate_ssh_key=yes ssh_key_comment=hdfs_user_key 
+          password=$6$AGLYCh0AM8JGAN46$g3nU4C0wUbBxnovk1wp6cZdVv0kOKwdDZRDx0LZLRYtmZLMAxID6i8u1etlg0OTD7EpCfMYWAI7Urme1WqRQP/
+
+# using full path to the pub doesn't seem to work here. When creating the authorized_keys file manually, make sure chmod is 600
+# or else the private key won't get used when ssh locally.
+#  - name:  create authorized_keys file for hdfs user
+#    authorized_key: user=hdfs key="{{ lookup('file', '/home/hdfs/.ssh/id_rsa.pub') }}" state=present

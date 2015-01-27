@@ -1,0 +1,12 @@
+description "hadoop-datanode service"
+
+start on stopped rc RUNLEVEL=[2345]
+respawn
+
+script
+  export JAVA_HOME={{java_home}}
+  export HADOOP_HOME={{hadoop_home}}
+  export HADOOP_CONF_DIR={{hadoop_config_dir}}
+  export PATH={{hadoop_bin_dir}}:$PATH
+  exec su -s /bin/bash -c 'exec "$0" "$@"' hdfs -- /opt/hadoop-2.5.0-cdh5.2.0/bin/hadoop --config $HADOOP_CONF_DIR datanode
+end script

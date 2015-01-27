@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
+
+<configuration>
+
+<property>
+  <name>mapred.job.tracker</name>
+  <value>{{leading_master}}:9001</value>
+</property>
+<property>
+  <name>mapred.jobtracker.taskScheduler</name>
+  <value>org.apache.hadoop.mapred.MesosScheduler</value>
+</property>
+<property>
+  <name>mapred.mesos.taskScheduler</name>
+  <value>org.apache.hadoop.mapred.JobQueueTaskScheduler</value>
+</property>
+<property>
+  <name>mapred.mesos.master</name>
+  <value>zk://{{zk_ensemble_url}}/mesos</value>
+</property>
+<property>
+  <name>mapred.mesos.executor.uri</name>
+  <value>hdfs://{{leading_master}}:8020/{{hadoop_cdh_gz}}</value>
+</property>
+
+</configuration>
