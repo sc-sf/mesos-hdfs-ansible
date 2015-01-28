@@ -209,36 +209,3 @@ Then on another terminal, run the wordcount example. The actual example jar file
 
    
 
-Directory layout:
-
-mesos-hdfs-ansible
-├── ansible.cfg
-├── cluster.yml
-├── inventory
-├── restartall.yml
-├── shutdownall.yml
-├── site.yml
-└── useradd_hdfs_local.yml
-├── group_vars
-│   └── all
-├── roles
-│   └── hadoop_dfs
-│       ├── files
-│       │   ├── hadoop-2.5.0-cdh5.2.0.tar.gz
-│       │   ├── hadoop-mesos-0.0.8.jar
-│       │   ├── id_rsa
-│       │   ├── id_rsa.pub
-│       │   └── libhadoop.so
-│       ├── handlers
-│       │   └── main.yml
-│       ├── tasks
-│       │   └── main.yml
-│       └── templates
-│           ├── bash_profile.j2
-│           ├── core-site.xml.j2
-│           ├── hadoop-datanode.conf.j2
-│           ├── hadoop-env.sh.j2
-│           ├── hadoop-namenode.conf.j2
-│           ├── hdfs-site.xml.j2
-│           ├── log4j.properties.j2
-│           └── mapred-site.xml.j2
